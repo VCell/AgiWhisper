@@ -1,0 +1,21 @@
+<!--
+自测页面，选择一个本地的pcm文件并上传至/talk_manual接口，同时展示返回
+-->
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>WebSocket Audio Test</title>
+</head>
+
+<body>
+    <h2>WebSocket Audio Test</h2>
+    <input type="file" id="audioFile" accept=".m4a">
+    <button onclick="sendAudio()">Send Audio</button>
+    <pre id="serverResponse">Server responses will appear here...</pre>
+
+    <script src="audioWebSocket.js"></script>
+</body>
+
+</html>
