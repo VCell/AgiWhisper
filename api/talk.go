@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -42,6 +43,7 @@ func (t *TalkController) TalkManual(c echo.Context) error {
 	slog.InfoContext(ctx, "TalkManual start")
 	ws, err := t.upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
+		slog.ErrorContext(ctx, "Upgrade err", "err", err)
 		return err
 	}
 	defer ws.Close()
@@ -77,7 +79,7 @@ func (t *TalkController) TalkManual(c echo.Context) error {
 		}
 	}
 	ws.WriteJSON(ResponseFrame{
-		Type: TYPE_SLICE,
+		Type: TYPE_ANSWER,
 		Data: result.String(),
 	})
 
@@ -86,30 +88,42 @@ func (t *TalkController) TalkManual(c echo.Context) error {
 
 func readAudio(ctx context.Context, ws *websocket.Conn) ([]string, error) {
 	result := []string{}
-	trans := transcription.NewAudioTranscription()
-	defer trans.Clean()
+	sliceId := 0
+	var trans *transcription.AudioTranscription
+
+	defer func() {
+		if trans != nil {
+			trans.Clean()
+		}
+	}()
 	for {
+		if trans == nil {
+			trans = transcription.NewAudioTranscription(ctx, sliceId)
+			sliceId++
+		}
 		var frame AudioFrame
 		err := ws.ReadJSON(&frame)
 		if err != nil {
-			slog.ErrorContext(ctx, "error reading frame:", err)
+			slog.ErrorContext(ctx, "error reading frame", "err", err)
 			return nil, err
 		}
-
+		slog.InfoContext(ctx, fmt.Sprintf("ReadJSON.action:%s,Len:%d", frame.Action, len(frame.Audio)))
 		audio, err := base64.StdEncoding.DecodeString(frame.Audio)
 		if err != nil {
-			slog.ErrorContext(ctx, "error decoding audio:", err)
+			slog.ErrorContext(ctx, "error decoding audio", "err", err)
 			return nil, err
 		}
 		if len(audio) > 0 {
 			if err = trans.RecordSlice(ctx, audio); err != nil {
-				slog.ErrorContext(ctx, "record audio:", err)
+				slog.ErrorContext(ctx, "record audio:", "err", err)
 				return nil, err
 			}
 		}
 
 		if frame.Action == ACTION_ASK || frame.Action == ACTION_SPLIT {
 			msg, _ := trans.Transcription(ctx)
+			trans.Clean()
+			trans = nil
 			if len(msg) > 0 {
 				result = append(result, msg)
 			}

@@ -2,25 +2,29 @@ package transcription
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"path"
 
-	"github.com/google/uuid"
+	"github.com/VCell/AgiWhisper/module/log"
+	"github.com/VCell/AgiWhisper/module/util"
 	"github.com/sashabaranov/go-openai"
 )
 
-const AUDIO_EXT = "m4a"
+const CLIENT_FMT = "pcm"
+const SERVER_FMT = "m4a"
 
 type AudioTranscription struct {
 	filepath string
 }
 
-func NewAudioTranscription() *AudioTranscription {
-	filename := uuid.New().String()
+func NewAudioTranscription(ctx context.Context, sliceId int) *AudioTranscription {
+	traceID := log.GetTraceIDFromCtx(ctx)
 	basepath := os.Getenv("AUDIO_RECORD_PATH")
+	filename := fmt.Sprintf("%s_%d.%s", traceID, sliceId, CLIENT_FMT)
 	return &AudioTranscription{
-		filepath: path.Join(basepath, filename+"."+AUDIO_EXT),
+		filepath: path.Join(basepath, filename),
 	}
 }
 
@@ -41,6 +45,8 @@ func (a *AudioTranscription) RecordSlice(ctx context.Context, data []byte) error
 
 func (a *AudioTranscription) Transcription(ctx context.Context) (string, error) {
 	defer a.Clean()
+	m4aPath := a.filepath + ".m4a"
+	util.ConvertPCMToM4A(a.filepath, m4aPath)
 	config := openai.DefaultConfig(os.Getenv("OPENAI_API_KEY"))
 	config.BaseURL = os.Getenv("OPENAI_BASE_URL")
 
@@ -49,7 +55,7 @@ func (a *AudioTranscription) Transcription(ctx context.Context) (string, error) 
 		context.Background(),
 		openai.AudioRequest{
 			Model:    openai.Whisper1,
-			FilePath: a.filepath,
+			FilePath: m4aPath,
 			Prompt:   "使用简体中文输出",
 		},
 	)

@@ -42,3 +42,10 @@ func TraceIDMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		return next(c)
 	}
 }
+
+func GetTraceIDFromCtx(ctx context.Context) string {
+	if traceID, ok := ctx.Value(TraceIDContextKey{}).(string); ok {
+		return traceID
+	}
+	return ""
+}
